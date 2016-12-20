@@ -1,0 +1,77 @@
+Windows下Git服务器搭建说明：
+1、安装Copssh(Copssh_4.1.0_Installer)
+   安装时注意安装路径不要用中文，也不要有空格。尽量选择根目录安装(我选择的是C:\Copssh_x86)
+   用记事本打开C:\Copssh_x86\etc\ssh_config和sshd_config两个文件，删除Port前的#，并设置端口为22。
+
+2、安装Git for Windows(Git-2.11.0-64-bit)
+   a.安装时注意安装路径不要用中文，我采用的是默认路径(C:\Program Files\Git，建议使用根目录)
+   b.bash控制台配置建议选择Use Git from Git Bash Only，使用其他两项会改变windows原有控制台的
+     部分指令的接口，可能会导致一些不兼容的情况发生！
+   c.关于git对跨平台换行符处理方式的设置，对于windows系统选择第一个。服务器会自动兼容其他系统。
+   d.设置工作目录：将环境变量中的HOME由%HOMEPATH%改为指定目录，如D:\Documents\GitBank
+
+3、由于SSH服务器不能找到git命令，需要如下操作：
+   a.建立主程序软链接
+   程序列表 > CopSSH > Start a unix bash shell.
+   cd /Bin
+   建立符号链接到git.exe, git-receive-pack.exe, git-upload-archive.exe, git-upload-pack.exe:
+   $ ln -s /cygdrive/c/Program\ Files/Git/bin/git.exe git.exe
+   $ ln -s /cygdrive/c/Program\ Files/Git/mingw64/libexec/git-core/git-receive-pack.exe git-receive-pack.exe
+   $ ln -s /cygdrive/c/Program\ Files/Git/mingw64/libexec/git-core/git-upload-archive.exe git-upload-archive.exe
+   $ ln -s /cygdrive/c/Program\ Files/Git/mingw64/libexec/git-core/git-upload-pack.exe git-upload-pack.exe
+   注：按自己的安装git的路径改，空格要转为"\ "
+
+   b.拷贝xxx\Git\mingw64\bin\目录下的libiconv-2.dll文件到C:\Copssh_x86\bin
+
+4、生成公钥与私钥
+   启动GitBash，在其中输入ssh-keygen -t rsa -C "你的github邮箱地址"，回车。
+   之后会让你选择是否对存放SSH Key的文件夹进行加密，一般都不需要的。一路回车，就OK了。
+   生成的Key默认会在c盘 “当前用户”中(C:\Users\Administrator\.ssh\)。
+   id_rsa.pub是公钥文件，用记事本打开可以看到以 ssh-rsa 开头的一串字符。id_rsa是私钥文件，不用处理。
+
+5、配置本地服务器SSH公钥登录
+   如果是架设Git服务器，则需要开启SSH服务，Win10已经自带该服务，之前版本一般通   过安装第三方软件实际。
+   前面安装的Copssh就是SSH Server。在配置SSH用户前，建议添加管理用户，我添加的用户名叫 GitAdmin。
+   a.激活用户名
+   打开COPSSH Control Panel，在Users选项卡中激活用户，点击 Add 按钮。按Forward按钮，在User处选择前面
+   添加的GitAdmin(也可以默认选择其他用户)，继续前进。用户选项中去除对Allow password authentication的选择。
+   点击Apply按钮完成用户激活。此时会在C:\Copssh_x86\home\下生成GitAdmin文件夹。
+   b.配置公钥
+   将第Step4中生成的公钥文件拷贝到C:\Copssh_x86\home\GitAdmin\.ssh\目录下，重命名为 authorized_keys
+   连接测试：在Git Bash中输入ssh GitAdmin@MS-Worker(计算机名或者本机IP地址)回车，根据提示输入yes后回车。
+   连接成功后命令行前面的用户名会变成刚才登录的用户名。输入ls -al，可以看到GitAdmin目录下的全部文件。
+   如果系统中还需要有别的用户登录，用户自己创建SSH公钥与私钥，将公钥数据添加到authorized_keys即可实现共享。
+
+6、配置GitHub连接
+   登陆你的GitHub账户，依次点击Account Settings > SSH and GPG Keys > New SSH key，把id_rsa.pub中的内容拷贝进去。
+   Title是标题栏，任意填写，用于内容区别。Key里面就是需要添加的公钥信息。至此，GitHub公钥配置完成。
+   连接测试：在Git Bash中输入 ssh -T git@github.com 后等待数据返回。以下信息表示连接成功：
+   Hi UserName! You've successfully authenticated, but GitHub does not provide shell access.
+
+   配置本地用户和邮箱，用于数据上传：
+   git config --global user.name "你的github用户名"
+   git config --global user.email "你的github邮箱地址"
+
+7、其他相关配置
+   解决Git Bash下中文乱码的问题：
+   直接在Bash中右键->Options->Text(Locale:zh_CN; Character set: UTF-8)
+
+   如右键不可用，可打开C:\Program Files\Git\etc\inputrc文件，修改以下两个选项：
+   set output-meta on  #bash可以正常输入中文
+   set convert-meta off
+
+   Git默认是拒绝push操作的，如果想要Push，需要在.git/config文件后面添加如下代码：
+   [receive]
+        denyCurrentBranch = ignore
+
+
+   执行Git bash进入该目录的命令行窗口执行
+   $ git init
+   在该目录下新建readme.txt文件，注意如果包含中文，必须将readme.txt文件保存为UTF-8格式
+
+   命令行运行如下命令：
+   $ git add readme.txt  ---- 将文件添加到git仓库管理
+   $ git commit -m testComment ---- 将修改提交到本地git仓库
+   $ git remote add origin git@github.com:yourname/test.git ---- 关联远程仓库到本地仓库
+   $ git pull origin master ---- 将远程仓库的内容更新到本地仓库的master分支
+   $ git push origin master ---- 将本地仓库master分支的所有更改同步到远程仓库
